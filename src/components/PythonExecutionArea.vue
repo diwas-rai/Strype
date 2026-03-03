@@ -13,6 +13,14 @@
                 <span v-else class="python-running">{{runCodeButtonIconText}}</span>
                 <span>{{runCodeButtonLabel}}</span>
             </button>
+            <button v-if="isPythonExecuting" id="continueButton" ref="continueButton" class="pea-controls-button" @click="runClicked" :title="$t('PEA.continue')" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
+                <img :src="faviconURL" class="pea-play-img">
+                <span>{{$t('PEA.continue')}}</span>
+            </button>
+            <button v-if="isPythonExecuting" id="stepButton" ref="stepButton" class="pea-controls-button" @click="runClicked" :title="$t('PEA.step')" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
+                <img :src="nextStepIconURL" class="pea-play-img">
+                <span>{{$t('PEA.step')}}</span>
+            </button>
             <button id="debugButton" ref="debugButton" class="pea-controls-button" @click="runClicked" :title="$t((isPythonExecuting) ? 'PEA.stop' : 'PEA.debug') + ' (Ctrl+Enter)'" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
                 <img v-if="!isPythonExecuting" :src="debugIconURL" class="pea-play-img">
                 <span v-else class="python-running">{{runCodeButtonIconText}}</span>
@@ -352,6 +360,10 @@ export default defineComponent({
             return "debug.png";
         },
 
+        nextStepIconURL(): string { 
+            return "next-step.png";
+        },
+
         peaComponentId(): string {
             return getPEAComponentRefId();
         },
@@ -389,7 +401,11 @@ export default defineComponent({
         },
 
         isPythonExecuting(): boolean {
-            return useStore().pythonExecRunningState != PythonExecRunningState.NotRunning;
+            return ![PythonExecRunningState.NotRunning, PythonExecRunningState.Debugging].includes(useStore().pythonExecRunningState);
+        },
+
+        isPythonDebugging(): boolean {
+            return useStore().pythonExecRunningState == PythonExecRunningState.Debugging;
         },
 
         currentSplitterPane1Size(): number {

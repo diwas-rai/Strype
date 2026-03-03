@@ -235,6 +235,8 @@
   "PEA": {
     "run": "Run",
     "debug": "Debug",
+    "continue": "Continue",
+    "step": "Step",
     "stop": "Stop",
     "stopping": "Stopping...",
     "loading": "Initialising...",
