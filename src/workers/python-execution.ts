@@ -130,6 +130,7 @@ export interface ErrorDetails {
 const executePython = pyodideExpose(async (
     extras: PyodideExtras,
     pythonCode: string,
+    debugMode: boolean,
     startInSlashCloud: boolean,
     printStdout: Comlink.Remote<(output: string) => void>,
     requestInput: Comlink.Remote<(prompt: string) => void>,
@@ -137,18 +138,6 @@ const executePython = pyodideExpose(async (
     otherRequest: Comlink.Remote<(req: SyncOrAsyncStrypePyodideWorkerRequest) => void>
 ) : Promise<ErrorDetails | null> => {
     return await reloader.withPyodide(async (pyodide : PyodideInterface) => {
-        const runner = pyodide.runPython(`from python_runner import PyodideRunner
-import traceback
-from itertools import dropwhile
-class StrypePyodideRunner(PyodideRunner):
-    def serialize_traceback(self, exc):
-        # exc is BaseException and we should return a dict.
-        tbe = traceback.TracebackException.from_exception(exc)
-        # Get rid of python_runner frames (like skip_traceback_internals does),
-        # and translate to dict for easy transformation into Javascript object:
-        filtered = [dict(filename=frame.filename, lineno=frame.lineno) for frame in list(dropwhile(lambda f: f.filename != self.filename, tbe.stack))]
-        return dict(error_type=type(exc).__name__, error_message=str(exc), traceback=filtered, text=type(exc).__name__ + ": " + str(exc))
-StrypePyodideRunner()`);
         const bridgeSync: SyncStrypePyodideHandlerFunction = <R extends SyncStrypePyodideWorkerRequest> (req : R) : ResponseFor<R> => {
             otherRequest({kind: "sync", request: req});
             const reply = extras.readMessage() as (SyncStrypePyodideWorkerResponse | {request: string, error: string});
@@ -163,7 +152,75 @@ StrypePyodideRunner()`);
                 // I think Typescript should be able to infer reply is ResponseFor<R> because of the if check, but apparently not:
                 return reply as ResponseFor<R>;
             }
+        }; 
+
+        // Define the pause hook on the global scope SECOND, so Python can find it
+        self.pauseForDebugger = (line: number, stateJson: string) => {
+            bridgeSync({
+                request: "debug_pause",
+                line: line,
+                state: stateJson,
+            } as any); 
         };
+
+        const runner = pyodide.runPython(`from python_runner import PyodideRunner
+import traceback
+import sys
+import json
+from itertools import dropwhile
+from js import pauseForDebugger
+
+def filter_variables(var_dict):
+    clean_dict = {}
+    for key, value in var_dict.items():
+        if key.startswith('__'): continue
+        if type(value).__name__ == 'module': continue
+        if callable(value): continue
+        clean_dict[key] = repr(value)
+    return clean_dict
+
+def get_call_stack(frame):
+    stack_summary = traceback.extract_stack(frame)
+    formatted_stack = []
+    for item in stack_summary:
+        if "pyodide" in item.filename or item.filename.startswith("<") and not item.filename == "<string>":
+            continue
+        formatted_stack.append({
+            "file": item.filename,
+            "line": item.lineno,
+            "function": item.name,
+            "code": item.line.strip() if item.line else ""
+        })
+    return formatted_stack
+
+def trace_lines(frame, event, arg):
+    filename = frame.f_code.co_filename
+    
+    # Only trace the user's actual script ---
+    is_user_code = "my_program.py" in filename or "<string>" in filename or "<stdin>" in filename
+    if not is_user_code:
+        return trace_lines
+    
+    if event == 'line':
+        current_method = frame.f_code.co_name
+        if current_method == "<module>":
+            current_method = "Global Scope"
+        state = {
+            "method": current_method,
+            "globals": filter_variables(frame.f_globals),
+            "locals": {} if current_method == "Global Scope" else filter_variables(frame.f_locals),
+            "stack": get_call_stack(frame)
+        }
+        pauseForDebugger(frame.f_lineno, json.dumps(state))
+    return trace_lines
+
+class StrypePyodideRunner(PyodideRunner):
+    def serialize_traceback(self, exc):
+        tbe = traceback.TracebackException.from_exception(exc)
+        filtered = [dict(filename=frame.filename, lineno=frame.lineno) for frame in list(dropwhile(lambda f: f.filename != self.filename, tbe.stack))]
+        return dict(error_type=type(exc).__name__, error_message=str(exc), traceback=filtered, text=type(exc).__name__ + ": " + str(exc))
+
+StrypePyodideRunner()`);
 
         // Set the global fields used by Javascript code (and by the pyodide cloud file mounting, just below): 
         self.syncStrypePyodideWorkerBridge = bridgeSync;
@@ -218,7 +275,24 @@ StrypePyodideRunner()`);
             },
         });
         runner.set_callback(callback);
+        // Set the global fields used by Javascript code: 
+        self.syncStrypePyodideWorkerBridge = bridgeSync;
+        self.asyncStrypePyodideWorkerBridge = (r) => otherRequest({kind: "async", request: r});
+        self.spriteManager = new SpriteManager((u) => self.updatePort.postMessage(u));
+        self.pyodide = pyodide;
+
+        // Set the trace if debugMode is true, then run
+        if (debugMode) {
+            pyodide.runPython("sys.settrace(trace_lines)");
+        }
+
         await runner.run_async(pythonCode, {});
+
+        // Remove the settrace, so debugMode is off for subsequent runs
+        if (debugMode) {
+            pyodide.runPython("sys.settrace(None)");
+        }
+        
         return error;
     });
 });

@@ -11,6 +11,7 @@ export interface PyodideWorkerGlobalScope extends WorkerGlobalScope {
     asyncStrypePyodideWorkerBridge: AsyncStrypePyodideHandlerFunction;
     spriteManager : SpriteManager;
     pyodide: PyodideAPI;
+    pauseForDebugger: (line: number, stateJson: string) => void;
 }
 
 // A function which takes a request from SyncStrypePyodideWorkerRequest and synchronously returns

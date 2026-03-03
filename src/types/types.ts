@@ -1139,6 +1139,7 @@ export enum PythonExecRunningState {
     NotRunning,
     Running,
     RunningAwaitingStop,
+    Debugging,
 }
 
 export enum StrypeSyncTarget {

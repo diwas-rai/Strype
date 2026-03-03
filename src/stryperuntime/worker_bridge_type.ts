@@ -61,6 +61,7 @@ export type SyncStrypePyodideWorkerRequest =
     | { request: "playSoundAndWait"; sound: RemoteSound }
     | { request: "getMonoSoundSampleValues"; sound: RemoteSound }
     | { request: "cloneSound"; sound: RemoteSound; toMono: boolean } // If toMono is false, clone with same number of channels
+    | { request: "debug_pause"; line: number; state: string }
     | { request: "file_createNode"; parent: CloudFileId, name: string, isDir: boolean, filePath: string }
     | { request: "file_open"; id: CloudFileId; flags: number }
     | { request: "file_close"; id: CloudFileId }
@@ -95,6 +96,7 @@ export type SyncStrypePyodideWorkerResponse =
     | { request: "playSoundAndWait"; response: boolean; } // We don't need a return value as such, we're just using the response to wait
     | { request: "getMonoSoundSampleValues"; response: number[] }
     | { request: "cloneSound"; response: RemoteSound;}
+    | { request: "debug_pause"; line: number; state: string }
     | { request: "file_open"; response: boolean; } // We don't need a return value as such, we're just using the response to wait
     | { request: "file_close"; response: boolean; } // We don't need a return value as such, we're just using the response to wait
     | { request: "file_read"; response: string; } // Uint8 encoded into string

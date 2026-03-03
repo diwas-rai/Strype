@@ -8,21 +8,21 @@
             <!-- IMPORTANT: keep this div with "invisible" text for proper layout rendering, it replaces the tabs -->
             <span v-if="!isTabsLayout" :class="scssVars.peaNoTabsPlaceholderSpanClassName">c+g</span>
             <div class="flex-padding"/>            
-            <button id="runButton" ref="runButton" class="pea-controls-button" @click="runClicked" :title="$t((isPythonExecuting) ? 'PEA.stop' : 'PEA.run') + ' (Ctrl+Enter)'" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
+            <button v-if="!isPythonDebugging" id="runButton" ref="runButton" class="pea-controls-button" @click="runClicked" :title="$t((isPythonExecuting) ? 'PEA.stop' : 'PEA.run') + ' (Ctrl+Enter)'" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
                 <img v-if="!isPythonExecuting" :src="faviconURL" class="pea-play-img">
                 <span v-else class="python-running">{{runCodeButtonIconText}}</span>
                 <span>{{runCodeButtonLabel}}</span>
             </button>
-            <button v-if="isPythonExecuting" id="continueButton" ref="continueButton" class="pea-controls-button" @click="runClicked" :title="$t('PEA.continue')" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
-                <img :src="faviconURL" class="pea-play-img">
+            <button v-if="isPythonDebugging" id="continueButton" ref="continueButton" class="pea-controls-button" @click="continueClicked" :title="$t('PEA.continue')" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
+                <img :src="faviconURL" class="pea-debug-button-img">
                 <span>{{$t('PEA.continue')}}</span>
             </button>
-            <button v-if="isPythonExecuting" id="stepButton" ref="stepButton" class="pea-controls-button" @click="runClicked" :title="$t('PEA.step')" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
-                <img :src="nextStepIconURL" class="pea-play-img">
+            <button v-if="isPythonDebugging" id="stepButton" ref="stepButton" class="pea-controls-button" @click="stepClicked" :title="$t('PEA.step')" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
+                <img :src="nextStepIconURL" class="pea-debug-button-img">
                 <span>{{$t('PEA.step')}}</span>
             </button>
-            <button id="debugButton" ref="debugButton" class="pea-controls-button" @click="runClicked" :title="$t((isPythonExecuting) ? 'PEA.stop' : 'PEA.debug') + ' (Ctrl+Enter)'" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
-                <img v-if="!isPythonExecuting" :src="debugIconURL" class="pea-play-img">
+            <button v-if="!isPythonExecuting" id="debugButton" ref="debugButton" class="pea-controls-button" @click="debugClicked" :title="$t((isPythonDebugging) ? 'PEA.stop' : 'PEA.debug') + ' (Ctrl+Enter)'" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
+                <img v-if="!isPythonDebugging" :src="debugIconURL" class="pea-play-img">
                 <span v-else class="python-running">{{runCodeButtonIconText}}</span>
                 <span>{{debugCodeButtonLabel}}</span>
             </button>
@@ -130,6 +130,9 @@ const turtlePixiHandler : TurtlePixiHandler | null = makePixiHandler();
 let turtleDirty = false;
 turtlePixiHandler?.setCanvasSize(800, 600);
 turtlePixiHandler?.setPixiSize(800, 600);
+
+let releaseDebuggerStep: ((value: boolean) => void) | null = null;
+let autoStepDebugger: boolean = false; // Used for the "Continue" button
 
 // We draw our actual graphics canvas (for strype.graphics) at the size it is on the page,
 // given the 4:3 aspect ratio.  But we also have a logical size that is constant, which is 800x600.
@@ -420,6 +423,7 @@ export default defineComponent({
         runCodeButtonIconText(): string {
             switch (useStore().pythonExecRunningState) {
             case PythonExecRunningState.Running:
+            case PythonExecRunningState.Debugging:
                 return "◼";
             case PythonExecRunningState.RunningAwaitingStop:
                 return "";
@@ -449,6 +453,7 @@ export default defineComponent({
             switch (useStore().pythonExecRunningState) {
             case PythonExecRunningState.NotRunning:
                 return " " + this.$t("PEA.debug");
+            case PythonExecRunningState.Debugging:
             case PythonExecRunningState.Running:
                 return " " + this.$t("PEA.stop");
             case PythonExecRunningState.RunningAwaitingStop:
@@ -517,6 +522,7 @@ export default defineComponent({
                 soundManager = new SoundManager(audioContext, this);
                 this.execPythonCode();
                 return;
+            case PythonExecRunningState.Debugging:
             case PythonExecRunningState.Running:
                 terminateAndRestartPyodide();
                 useStore().pythonExecRunningState = PythonExecRunningState.NotRunning;
@@ -526,7 +532,45 @@ export default defineComponent({
                 return;
             }
         },
+        
+        debugClicked() {
+            if (useStore().pythonExecRunningState === PythonExecRunningState.NotRunning) {
+                useStore().pythonExecRunningState = PythonExecRunningState.Running;
+                audioContext = new AudioContext();
+                soundManager = new SoundManager(audioContext, this);
+                
+                // Pass true to enable debugMode
+                this.execPythonCode(true); 
+            }
+            else {
+                // If it's already running, act as a stop button
+                this.runClicked(); 
+            }
+        },
 
+        stepClicked() {
+            if (releaseDebuggerStep) {
+                // Unblock the web worker
+                releaseDebuggerStep(true);
+                releaseDebuggerStep = null;
+            }
+        },
+
+        continueClicked() {
+            // Set the flag so future intercepts instantly resolve without waiting
+            autoStepDebugger = true;
+            this.stepClicked(); // Release the current hold
+        },
+
+        updateTurtleListeningEvents(): void {
+            // We should check if we are still in need to maintain the running state as "Running" (just for listening the events)
+            // but if the state is already stopped (which can have been naturally from Skulpt then we don't need to do anything)
+            if((useStore().pythonExecRunningState == PythonExecRunningState.Running || useStore().pythonExecRunningState == PythonExecRunningState.RunningAwaitingStop) && this.stopTurtleUIEventListeners){
+                this.stopTurtleUIEventListeners(true);
+                this.stopTurtleUIEventListeners = undefined;
+                useStore().pythonExecRunningState = PythonExecRunningState.NotRunning;
+            }
+        },
         redrawImportMessage() {
             const domCanvas = this.$refs.pythonGraphicsCanvas as HTMLCanvasElement;
             const ctx = domCanvas?.getContext("2d");
@@ -549,10 +593,13 @@ export default defineComponent({
             }
         },
         
-        execPythonCode() {
+        execPythonCode(debugMode: boolean = false) {
             const pythonConsole = this.$refs.pythonConsole as HTMLTextAreaElement;
             pythonConsole.value = "";
             setPythonExecAreaLayoutButtonPos();
+
+            // Reset auto-step when starting a new run
+            autoStepDebugger = false;
             
             // Make sure the text area is disabled when we run the code
             pythonConsole.disabled = true;
@@ -637,6 +684,7 @@ export default defineComponent({
                 (client.call(
                     client.workerProxy.executePython,
                     userCode,
+                    debugMode,
                     typeof(this.appStore.strypeProjectLocation) === "string",
                     Comlink.proxy((output: string) => {
                         pythonConsole.value = pythonConsole.value + output;
@@ -659,6 +707,37 @@ export default defineComponent({
                         }
                         else {
                             const req = asreq.request;
+
+                            if (req.request === "debug_pause") {
+                                // If the user clicked "Continue", instantly resolve to skip the pause
+                                if (autoStepDebugger) {
+                                    return navigator.serviceWorker.ready.then(() => {
+                                        return client.writeMessage({request: "debug_pause", response: true});
+                                    }).catch(console.error);
+                                }
+                                // Otherwise, halt execution
+                                useStore().pythonExecRunningState = PythonExecRunningState.Debugging;
+                                const state = JSON.parse(req.state);
+                                
+                                // TODO: figure out how to highlight the active line and render the variables
+                                console.log(`Paused at line ${req.line}`, state);
+
+                                // Return an unresolved promise to hang the thread until stepClicked() is called
+                                return new Promise<void>((resolve) => {
+                                    releaseDebuggerStep = (val: boolean) => {
+                                        resolve();
+                                    };
+                                }).then(async () => {
+                                    await navigator.serviceWorker.ready;
+                                    try {
+                                        await client.writeMessage({request: "debug_pause", response: true});
+                                    }
+                                    catch (e) {
+                                        console.error(e);
+                                    }
+                                });
+                            }
+
                             const resp = syncBridgePromise(req);
                             if (req.request != resp.request) {
                                 console.error(`Internal error: request ${req.request} did not match the response ${resp.request}`);
@@ -1232,6 +1311,13 @@ export default defineComponent({
     .pea-play-img {
         width: 16px;
         vertical-align: sub;
+    }
+
+    .pea-debug-button-img {
+        width: 16px;
+        height: 16px;
+        vertical-align: sub;
+        margin-right: 0.5rem;
     }
 
     .pea-tab-content-container {
