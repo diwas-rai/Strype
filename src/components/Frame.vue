@@ -7,7 +7,7 @@
         <!-- keep the tabIndex attribute, it is necessary to handle focus with Safari -->
         <div 
             :style="frameStyle" 
-            :class="{[scssVars.frameDivClassName]: true, blockFrameDiv: isBlockFrame && !isJointFrame, statementFrameDiv: !isBlockFrame && !isJointFrame, [scssVars.errorClassName]: hasParsingError, disabled: isDisabled}"
+            :class="{[scssVars.frameDivClassName]: true, blockFrameDiv: isBlockFrame && !isJointFrame, statementFrameDiv: !isBlockFrame && !isJointFrame, [scssVars.errorClassName]: hasParsingError, disabled: isDisabled, 'debug-highlight': isDebugHighlighted}"
             :id="UID"
             :data-frameType="frameType.type"
             @click="toggleCaret($event)"
@@ -348,6 +348,10 @@ export default defineComponent({
             // This computed property indicates whether a frame is disabled as a descendant of a disabled frame.
             // When that's the case, the whole most outer frame acts as a unit and actions/caret are for that unit.
             return this.isDisabled && this.appStore.frameObjects[getParentOrJointParent(this.frameId)].isDisabled;
+        },
+
+        isDebugHighlighted(): boolean {
+            return this.appStore.activeDebugFrameId === this.frameId;
         },
     },
 
@@ -1538,5 +1542,23 @@ export default defineComponent({
 .selectedTopBottom{
     border-top: 3px solid #000000 !important;
     border-bottom: 3px solid #000000 !important;
+}
+
+.context-menu-item > a {
+    display: flex !important;
+    align-items: baseline;
+}
+
+.context-menu-item-shortcut {
+    margin-left: auto;
+    padding-left: 1em;
+    font-size: 70%;
+    color: grey;
+}
+
+.debug-highlight {
+    box-shadow: 0 0 0 3px #f08c00 inset;
+    transition: all 0.15s ease-in-out;
+    z-index: 10;
 }
 </style>

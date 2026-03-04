@@ -526,6 +526,7 @@ export default defineComponent({
             case PythonExecRunningState.Running:
                 terminateAndRestartPyodide();
                 useStore().pythonExecRunningState = PythonExecRunningState.NotRunning;
+                useStore().activeDebugFrameId = null;
                 return;
             case PythonExecRunningState.RunningAwaitingStop:
                 // Else, nothing more we can do at the moment, just waiting for Skulpt to see it
@@ -623,6 +624,9 @@ export default defineComponent({
                 const parser = new Parser();
                 const userCode = parser.getFullCode();
                 parser.getErrorsFormatted(userCode);
+
+                const lineFrameMapping = parser.getFramePositionMap();
+
                 // Clear the graphics area:
                 if (targetCanvas != null) {
                     targetContext?.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
@@ -717,6 +721,15 @@ export default defineComponent({
                                 }
                                 // Otherwise, halt execution
                                 useStore().pythonExecRunningState = PythonExecRunningState.Debugging;
+
+                                // Line numbers are 1-indexed, whereas arrays are 0-indexed
+                                const mapping = lineFrameMapping[req.line - 1];
+                                if (mapping) {
+                                    useStore().activeDebugFrameId = mapping.frameId;
+                                    useStore().forceExpand(mapping.frameId);
+                                }
+                                
+
                                 const state = JSON.parse(req.state);
                                 
                                 // TODO: figure out how to highlight the active line and render the variables
@@ -728,6 +741,7 @@ export default defineComponent({
                                         resolve();
                                     };
                                 }).then(async () => {
+                                    useStore().activeDebugFrameId = null;
                                     await navigator.serviceWorker.ready;
                                     try {
                                         await client.writeMessage({request: "debug_pause", response: true});
@@ -766,6 +780,8 @@ export default defineComponent({
                         handleErrorTrace(possibleError.text, possibleError.traceback, () => {}, parser.getFramePositionMap());
                     }
                     useStore().pythonExecRunningState = PythonExecRunningState.NotRunning;
+                    useStore().activeDebugFrameId = null;
+                    this.isRunningStrypeGraphics = false;
                     setPythonExecAreaLayoutButtonPos();
                     // We always restart Pyodide for a clean state:
                     terminateAndRestartPyodide();

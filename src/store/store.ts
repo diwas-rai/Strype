@@ -234,6 +234,9 @@ export const useStore = defineStore("app", {
             DAPWrapper: {} as DAPWrapper,
 
             previousDAPWrapper: {} as DAPWrapper,
+
+            // Holds the ID of the frame currently paused in the debugger
+            activeDebugFrameId: null as number | string | null,
         };
     },
 
