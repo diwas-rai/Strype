@@ -729,11 +729,10 @@ export default defineComponent({
                                     useStore().forceExpand(mapping.frameId);
                                 }
                                 
-
-                                const state = JSON.parse(req.state);
-                                
-                                // TODO: figure out how to highlight the active line and render the variables
-                                console.log(`Paused at line ${req.line}`, state);
+                                useStore().currentDebuggerState = {
+                                    line: req.line,
+                                    ...JSON.parse(req.state),
+                                };
 
                                 // Return an unresolved promise to hang the thread until stepClicked() is called
                                 return new Promise<void>((resolve) => {

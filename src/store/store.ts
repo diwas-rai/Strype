@@ -18,6 +18,7 @@ import { vueComponentsAPIHandler } from "@/helpers/vueComponentAPI";
 import $ from "jquery";
 // #v-ifdef MODE == VITE_STANDARD_PYTHON_MODE
 import { actOnTurtleImport } from "@/helpers/editor";
+import { DebuggerState } from "@/types/types"; // adjust path if necessary
 // #v-endif
 
 function getState(): StateAppObject {
@@ -237,6 +238,9 @@ export const useStore = defineStore("app", {
 
             // Holds the ID of the frame currently paused in the debugger
             activeDebugFrameId: null as number | string | null,
+
+            // Holds the current state of the Python debugger when paused
+            currentDebuggerState: null as DebuggerState | null,
         };
     },
 

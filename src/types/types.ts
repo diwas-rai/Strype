@@ -1273,3 +1273,10 @@ export interface MediaDataAndDim {
 export type EditImageInDialogFunction = (imageDataURL: string, showPreview: (dataURL: string) => void, callback: (replacement: { code: string, mediaType: string }) => void) => void;
 export type EditSoundInDialogFunction = (sound: AudioBuffer, callback: (replacement: { code: string, mediaType: string }) => void) => void;
 
+export interface DebuggerState {
+    line: number;
+    method: string;
+    globals: Record<string, any>;
+    locals: Record<string, any>;
+    stack: any[];
+}

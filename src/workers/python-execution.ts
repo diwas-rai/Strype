@@ -183,12 +183,13 @@ def get_call_stack(frame):
     stack_summary = traceback.extract_stack(frame)
     formatted_stack = []
     for item in stack_summary:
-        if "pyodide" in item.filename or item.filename.startswith("<") and not item.filename == "<string>":
+        is_user_code = "my_program.py" in item.filename or "<string>" in item.filename or "<stdin>" in item.filename
+        if not is_user_code:
             continue
         formatted_stack.append({
             "file": item.filename,
             "line": item.lineno,
-            "function": item.name,
+            "function": item.name if item.name != "<module>" else "My code",
             "code": item.line.strip() if item.line else ""
         })
     return formatted_stack

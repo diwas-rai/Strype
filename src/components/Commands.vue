@@ -16,7 +16,7 @@
                                 <span class="gdrive-sync-label" v-else-if="isEditorContentModifiedFlag" :class="{'modifed-label-span': isProjectNotSourced}">{{ $t("appMessage.modifCloudFile") }}</span>
                             </div>
                         </div>     
-                        <div @mousedown.prevent.stop @mouseup.prevent.stop>
+                        <div v-if="!isPythonDebugging" @mousedown.prevent.stop @mouseup.prevent.stop>
                             <!-- #v-ifdef MODE == VITE_MICROBIT_MODE -->
                             <BTabs id="commandsTabs" content-class="mt-2" v-model:index="tabIndex">
                                 <BTab :title="$t('commandTabs.0')" active :title-link-class="getTabClasses(0)" :disabled="isEditing">
@@ -65,6 +65,7 @@
                             </BTabs>
                             <!-- #v-endif-->
                         </div>
+                        <DebuggerPane v-else/>
                         <text id="userCode"></text>
                         <span id="keystrokeSpan"></span>
                     </div>
@@ -123,6 +124,7 @@ import { eventBus } from "@/helpers/appContext";
 import {Splitpanes, Pane} from "splitpanes";
 import PythonExecutionArea from "@/components/PythonExecutionArea.vue";
 import {getPEAConsoleId, getPEATabContentContainerDivId, getPEAComponentRefId, getPEAControlsDivId} from "@/helpers/editor";
+import DebuggerPane from "@/components/DebuggerPane.vue";
 // #v-else
 import APIDiscovery from "@/components/APIDiscovery.vue";
 import { flash } from "@/helpers/webUSB";
@@ -153,6 +155,7 @@ export default defineComponent({
         // #v-ifdef MODE == VITE_STANDARD_PYTHON_MODE
         Splitpanes, Pane,
         PythonExecutionArea, 
+        DebuggerPane,
         // #v-else
         APIDiscovery,
         SimpleMsgModalDlg,
@@ -209,6 +212,10 @@ export default defineComponent({
         
         isProjectNotSourced(): boolean {
             return this.appStore.syncTarget == StrypeSyncTarget.none;
+        },
+
+        isPythonDebugging(): boolean {
+            return this.appStore.pythonExecRunningState === PythonExecRunningState.Debugging;
         },
 
         syncedTargetLogo(): string {

@@ -30,6 +30,7 @@ declare module 'vue' {
     CloudDriveItemPicker: typeof import('./src/components/CloudDriveItemPicker.vue')['default']
     Commands: typeof import('./src/components/Commands.vue')['default']
     ContextMenu: typeof import('./src/components/ContextMenu.vue')['default']
+    DebuggerPane: typeof import('./src/components/DebuggerPane.vue')['default']
     EditImageDlg: typeof import('./src/components/EditImageDlg.vue')['default']
     EditSoundDlg: typeof import('./src/components/EditSoundDlg.vue')['default']
     Frame: typeof import('./src/components/Frame.vue')['default']
