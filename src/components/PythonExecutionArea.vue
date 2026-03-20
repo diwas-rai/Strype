@@ -524,9 +524,17 @@ export default defineComponent({
                 return;
             case PythonExecRunningState.Debugging:
             case PythonExecRunningState.Running:
+                // If execution is currently paused, release the pending pause promise
+                // so worker-side state does not linger while we terminate/restart.
+                if (releaseDebuggerStep) {
+                    releaseDebuggerStep(false);
+                    releaseDebuggerStep = null;
+                }
+                autoStepDebugger = false;
                 terminateAndRestartPyodide();
                 useStore().pythonExecRunningState = PythonExecRunningState.NotRunning;
                 useStore().activeDebugFrameId = null;
+                useStore().currentDebuggerState = null;
                 return;
             case PythonExecRunningState.RunningAwaitingStop:
                 // Else, nothing more we can do at the moment, just waiting for Skulpt to see it
@@ -550,7 +558,11 @@ export default defineComponent({
         },
 
         stepClicked() {
+            // If stepping manually after continue mode, return to line-by-line pauses
+            autoStepDebugger = false;
             if (releaseDebuggerStep) {
+                // Resuming execution until the next traced line
+                useStore().pythonExecRunningState = PythonExecRunningState.Running;
                 // Unblock the web worker
                 releaseDebuggerStep(true);
                 releaseDebuggerStep = null;
@@ -560,7 +572,16 @@ export default defineComponent({
         continueClicked() {
             // Set the flag so future intercepts instantly resolve without waiting
             autoStepDebugger = true;
-            this.stepClicked(); // Release the current hold
+            // Drop the current highlight while execution is running again so the next pause
+            // can re-apply it for the frame where execution actually stopped.
+            useStore().activeDebugFrameId = null;
+            if (releaseDebuggerStep) {
+                // We are resuming execution until the next breakpoint.
+                useStore().pythonExecRunningState = PythonExecRunningState.Running;
+                // Release current pause without disabling continue mode.
+                releaseDebuggerStep(true);
+                releaseDebuggerStep = null;
+            }
         },
 
         updateTurtleListeningEvents(): void {
@@ -626,6 +647,12 @@ export default defineComponent({
                 parser.getErrorsFormatted(userCode);
 
                 const lineFrameMapping = parser.getFramePositionMap();
+                const breakpointLines = new Set<number>();
+                Object.entries(lineFrameMapping).forEach(([lineIndex, mapping]) => {
+                    if (mapping && useStore().hasDebugBreakpoint(mapping.frameId)) {
+                        breakpointLines.add(Number(lineIndex) + 1);
+                    }
+                });
 
                 // Clear the graphics area:
                 if (targetCanvas != null) {
@@ -713,8 +740,11 @@ export default defineComponent({
                             const req = asreq.request;
 
                             if (req.request === "debug_pause") {
-                                // If the user clicked "Continue", instantly resolve to skip the pause
-                                if (autoStepDebugger) {
+                                const mapping = lineFrameMapping[req.line - 1];
+                                const isBreakpointHit = breakpointLines.has(req.line);
+
+                                // In continue mode we only stop when we hit a breakpoint.
+                                if (autoStepDebugger && !isBreakpointHit) {
                                     return navigator.serviceWorker.ready.then(() => {
                                         return client.writeMessage({request: "debug_pause", response: true});
                                     }).catch(console.error);
@@ -723,7 +753,6 @@ export default defineComponent({
                                 useStore().pythonExecRunningState = PythonExecRunningState.Debugging;
 
                                 // Line numbers are 1-indexed, whereas arrays are 0-indexed
-                                const mapping = lineFrameMapping[req.line - 1];
                                 if (mapping) {
                                     useStore().activeDebugFrameId = mapping.frameId;
                                     useStore().forceExpand(mapping.frameId);
@@ -740,7 +769,6 @@ export default defineComponent({
                                         resolve();
                                     };
                                 }).then(async () => {
-                                    useStore().activeDebugFrameId = null;
                                     await navigator.serviceWorker.ready;
                                     try {
                                         await client.writeMessage({request: "debug_pause", response: true});
@@ -780,6 +808,7 @@ export default defineComponent({
                     }
                     useStore().pythonExecRunningState = PythonExecRunningState.NotRunning;
                     useStore().activeDebugFrameId = null;
+                    useStore().currentDebuggerState = null;
                     this.isRunningStrypeGraphics = false;
                     setPythonExecAreaLayoutButtonPos();
                     // We always restart Pyodide for a clean state:
