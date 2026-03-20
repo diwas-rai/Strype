@@ -45,6 +45,14 @@
                 :wasLastRuntimeError="wasLastRuntimeError"
                 :onFocus="showFrameParseErrorPopupOnHeaderFocus"
             />
+            <button
+                v-if="canToggleBreakpoint"
+                class="frame-breakpoint-toggle"
+                :class="{ active: hasBreakpoint }"
+                :title="hasBreakpoint ? 'Remove breakpoint' : 'Add breakpoint'"
+                @mousedown.stop
+                @click.stop="toggleBreakpoint"
+            ></button>
             <BPopover
                 v-if="hasRuntimeError || wasLastRuntimeError || hasParsingError"
                 :id="errorPopoverUID"
@@ -353,6 +361,16 @@ export default defineComponent({
         isDebugHighlighted(): boolean {
             return this.appStore.activeDebugFrameId === this.frameId;
         },
+
+        canToggleBreakpoint(): boolean {
+            const frameType = this.frameType.type;
+            const isContainerFrame = Object.values(ContainerTypesIdentifiers).includes(frameType);
+            return !this.isJointFrame && !isContainerFrame && !this.isInnerDisabled;
+        },
+
+        hasBreakpoint(): boolean {
+            return this.appStore.hasDebugBreakpoint(this.frameId as number);
+        },
     },
 
     watch:{
@@ -401,6 +419,14 @@ export default defineComponent({
 
     methods: {
         isMacOSPlatform,
+        toggleBreakpoint() {
+            if (this.isPythonExecuting || !this.canToggleBreakpoint) {
+                return;
+            }
+
+            this.appStore.toggleDebugBreakpoint(this.frameId as number);
+        },
+
         cutIfFirstInSelection() {
             // Cutting/copying by shortcut is only available for a frame selection*, and if the user's code isn't being executed.
             // To prevent the command to be called on all frames, but only once (first of a selection), we check that the current frame is a first of a selection.
@@ -1490,6 +1516,7 @@ export default defineComponent({
 .#{$strype-classname-frame-div} {    
     padding-top: 1px;
     padding-bottom: 1px;
+    position: relative;
     border-radius: 8px;
     border: 1px solid transparent;
     min-height: $frame-container-min-height;
@@ -1560,5 +1587,30 @@ export default defineComponent({
     box-shadow: 0 0 0 3px #f08c00 inset;
     transition: all 0.15s ease-in-out;
     z-index: 10;
+}
+
+.frame-breakpoint-toggle {
+    position: absolute;
+    left: -12px;
+    top: 10px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid #8f2a3b;
+    background: transparent;
+    cursor: pointer;
+    opacity: 0.6;
+    padding: 0;
+}
+
+.frame-breakpoint-toggle:hover {
+    opacity: 1;
+    background: #f3c6ce;
+}
+
+.frame-breakpoint-toggle.active {
+    background: #d32847;
+    border-color: #7d1a2e;
+    opacity: 1;
 }
 </style>

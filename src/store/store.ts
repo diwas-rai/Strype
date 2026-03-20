@@ -241,6 +241,9 @@ export const useStore = defineStore("app", {
 
             // Holds the current state of the Python debugger when paused
             currentDebuggerState: null as DebuggerState | null,
+
+            // Holds frame IDs that have a breakpoint enabled
+            debugBreakpointFrameIds: [] as number[],
         };
     },
 
@@ -725,6 +728,24 @@ export const useStore = defineStore("app", {
     },
     
     actions:{
+        toggleDebugBreakpoint(frameId: number) {
+            if (!this.debugBreakpointFrameIds) {
+                this.debugBreakpointFrameIds = [];
+            }
+
+            const existingIndex = this.debugBreakpointFrameIds.indexOf(frameId);
+            if (existingIndex >= 0) {
+                this.debugBreakpointFrameIds.splice(existingIndex, 1);
+            }
+            else {
+                this.debugBreakpointFrameIds.push(frameId);
+            }
+        },
+
+        hasDebugBreakpoint(frameId: number): boolean {
+            return this.debugBreakpointFrameIds?.includes(frameId) ?? false;
+        },
+
         showMessage(newMessage: MessageDefinition, timeoutMillis: number | null) {
             this.currentMessage = newMessage;
             const ourId = ++this.currentMessageId;
