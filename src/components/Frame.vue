@@ -46,7 +46,7 @@
                 :onFocus="showFrameParseErrorPopupOnHeaderFocus"
             />
             <button
-                v-if="canToggleBreakpoint"
+                v-if="canToggleBreakpoint && (!isPythonExecuting || hasBreakpoint)"
                 class="frame-breakpoint-toggle"
                 :class="{ active: hasBreakpoint }"
                 :title="hasBreakpoint ? 'Remove breakpoint' : 'Add breakpoint'"
