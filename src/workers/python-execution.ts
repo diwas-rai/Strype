@@ -83,7 +83,7 @@ import {getFSForEmscripten} from "@/stryperuntime/pyodide-emscripten-cloud-fs";
 import {createLazyFetchAssetsFS} from "@/stryperuntime/pyodide-emscripten-assets-fs";
 
 // We only specify updatePort here as we don't want other files using it directly:
-declare const self: PyodideWorkerGlobalScope & { updatePort: MessagePort };
+declare const self: PyodideWorkerGlobalScope & { updatePort: MessagePort; currentPyodideScriptSource: string };
 
 export async function serviceWorkerReadyAndInControl() : Promise<void> {
     await navigator.serviceWorker.ready;
@@ -138,6 +138,8 @@ const executePython = pyodideExpose(async (
     otherRequest: Comlink.Remote<(req: SyncOrAsyncStrypePyodideWorkerRequest) => void>
 ) : Promise<ErrorDetails | null> => {
     return await reloader.withPyodide(async (pyodide : PyodideInterface) => {
+        self.currentPyodideScriptSource = pythonCode;
+
         const bridgeSync: SyncStrypePyodideHandlerFunction = <R extends SyncStrypePyodideWorkerRequest> (req : R) : ResponseFor<R> => {
             otherRequest({kind: "sync", request: req});
             const reply = extras.readMessage() as (SyncStrypePyodideWorkerResponse | {request: string, error: string});
@@ -164,11 +166,12 @@ const executePython = pyodideExpose(async (
         };
 
         const runner = pyodide.runPython(`from python_runner import PyodideRunner
+import ast
 import traceback
 import sys
 import json
 from itertools import dropwhile
-from js import pauseForDebugger
+from js import pauseForDebugger, currentPyodideScriptSource
 
 def filter_variables(var_dict):
     clean_dict = {}
@@ -194,7 +197,27 @@ def get_call_stack(frame):
         })
     return formatted_stack
 
+trace_started = False
+
+def get_first_executable_line(source):
+    try:
+        module = ast.parse(source)
+    except SyntaxError:
+        return 1
+
+    for node in module.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if isinstance(node, ast.Expr) and isinstance(getattr(node, "value", None), ast.Constant) and isinstance(node.value.value, str):
+            continue
+        return node.lineno
+
+    return 1
+
+first_executable_line = get_first_executable_line(currentPyodideScriptSource)
+
 def trace_lines(frame, event, arg):
+    global trace_started
     filename = frame.f_code.co_filename
     
     # Only trace the user's actual script ---
@@ -204,6 +227,14 @@ def trace_lines(frame, event, arg):
     
     if event == 'line':
         current_method = frame.f_code.co_name
+
+        # Skip module-level setup (including imports and initial declarations)
+        # and start tracing from the first top-level executable line.
+        if not trace_started:
+            if current_method == "<module>" and frame.f_lineno < first_executable_line:
+                return trace_lines
+            trace_started = True
+
         if current_method == "<module>":
             current_method = "Global Scope"
         state = {
