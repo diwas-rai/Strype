@@ -234,6 +234,7 @@
   },
   "PEA": {
     "run": "Run",
+    "debug": "Debug",
     "stop": "Stop",
     "stopping": "Stopping...",
     "loading": "Initialising...",

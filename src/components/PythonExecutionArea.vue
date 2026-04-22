@@ -13,6 +13,11 @@
                 <span v-else class="python-running">{{runCodeButtonIconText}}</span>
                 <span>{{runCodeButtonLabel}}</span>
             </button>
+            <button id="debugButton" ref="debugButton" class="pea-controls-button" @click="runClicked" :title="$t((isPythonExecuting) ? 'PEA.stop' : 'PEA.debug') + ' (Ctrl+Enter)'" :class="{highlighted: highlightPythonRunningState}" :disabled="!isPythonWorkerReady">
+                <img v-if="!isPythonExecuting" :src="debugIconURL" class="pea-play-img">
+                <span v-else class="python-running">{{runCodeButtonIconText}}</span>
+                <span>{{debugCodeButtonLabel}}</span>
+            </button>
         </div>
         <div :id="tabContentContainerDivId" :class="{'pea-tab-content-container': true, 'flex-padding': true, 'pea-43-ratio': hasDefault43Ratio}">
             <!-- the SplitPanes is used in all layout configurations: for tabs, we only show 1 of the panes and disable moving the divider, and for stacked window it acts as normal -->
@@ -343,6 +348,10 @@ export default defineComponent({
             return "favicon.png";
         },
 
+        debugIconURL(): string {
+            return "debug.png";
+        },
+
         peaComponentId(): string {
             return getPEAComponentRefId();
         },
@@ -409,6 +418,21 @@ export default defineComponent({
             switch (useStore().pythonExecRunningState) {
             case PythonExecRunningState.NotRunning:
                 return " " + this.$t("PEA.run");
+            case PythonExecRunningState.Running:
+                return " " + this.$t("PEA.stop");
+            case PythonExecRunningState.RunningAwaitingStop:
+                return this.$t("PEA.stopping");
+            default: return "";
+            }
+        },
+
+        debugCodeButtonLabel(): string {
+            if (!isPythonWorkerReady.value) {
+                return " " + this.$t("PEA.loading");
+            }
+            switch (useStore().pythonExecRunningState) {
+            case PythonExecRunningState.NotRunning:
+                return " " + this.$t("PEA.debug");
             case PythonExecRunningState.Running:
                 return " " + this.$t("PEA.stop");
             case PythonExecRunningState.RunningAwaitingStop:
