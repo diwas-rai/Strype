@@ -394,6 +394,23 @@ export default defineComponent({
                 this.toggleErrorPopover.hide();
             }
         },
+
+        isDebugHighlighted(isHighlighted: boolean) {
+            if(!isHighlighted){
+                return;
+            }
+
+            this.$nextTick(() => {
+                const frameElement = document.getElementById(this.UID) as HTMLDivElement | null;
+                if(!frameElement){
+                    return;
+                }
+
+                this.appStore.setCurrentFrame({id: this.frameId, caretPosition: CaretPosition.below}, false);
+                frameElement.scrollIntoView({block: "center", inline: "nearest"});
+                frameElement.focus();
+            });
+        },
     },
 
     mounted() {
