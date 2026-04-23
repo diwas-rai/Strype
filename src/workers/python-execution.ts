@@ -179,7 +179,10 @@ def filter_variables(var_dict):
         if key.startswith('__'): continue
         if type(value).__name__ == 'module': continue
         if callable(value): continue
-        clean_dict[key] = repr(value)
+        clean_dict[key] = {
+            "type": type(value).__name__,
+            "value": repr(value)
+        }
     return clean_dict
 
 def get_call_stack(frame):

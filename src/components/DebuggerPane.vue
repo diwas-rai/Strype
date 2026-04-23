@@ -28,7 +28,9 @@
                     <div class="debugger-list">
                         <div v-if="!debuggerState?.locals || Object.keys(debuggerState.locals).length === 0" class="empty-state">No local variables</div>
                         <div v-for="(val, key) in debuggerState?.locals" :key="'loc'+key" class="debugger-item">
-                            <span class="var-name">{{ key }}</span>: <span class="var-value">{{ val }}</span>
+                            <span class="var-name">{{ key }}</span>:
+                            <span class="var-value" :class="getVarTypeClass(val)">{{ getVarValue(val) }}</span>
+                            <span class="var-type-pill" :class="getVarTypeClass(val)">{{ getVarType(val) }}</span>
                         </div>
                     </div>
                 </div>
@@ -38,7 +40,9 @@
                     <div class="debugger-list">
                         <div v-if="!debuggerState?.globals || Object.keys(debuggerState.globals).length === 0" class="empty-state">No global variables</div>
                         <div v-for="(val, key) in debuggerState?.globals" :key="'glob'+key" class="debugger-item">
-                            <span class="var-name">{{ key }}</span>: <span class="var-value">{{ val }}</span>
+                            <span class="var-name">{{ key }}</span>:
+                            <span class="var-value" :class="getVarTypeClass(val)">{{ getVarValue(val) }}</span>
+                            <span class="var-type-pill" :class="getVarTypeClass(val)">{{ getVarType(val) }}</span>
                         </div>
                     </div>
                 </div>
@@ -49,12 +53,12 @@
 </template>
 
 <script lang="ts">
-import Vue from "vue";
+import { defineComponent } from "vue";
 import SVGIcon from "@/components/SVGIcon.vue";
 import { mapStores } from "pinia";
 import { useStore } from "@/store/store";
 
-export default Vue.extend({
+export default defineComponent({
     name: "DebuggerPane",
     components: {
         SVGIcon,
@@ -70,6 +74,24 @@ export default Vue.extend({
             }
 
             return [...this.appStore.currentDebuggerState?.stack].reverse(); 
+        },
+    },
+    methods: {
+        getVarType(variable: any): string {
+            if (typeof variable === "string") {
+                return "unknown";
+            }
+            return variable.type || "unknown";
+        },
+        getVarValue(variable: any): string {
+            if (typeof variable === "string") {
+                return variable;
+            }
+            return variable.value;
+        },
+        getVarTypeClass(variable: any): string {
+            const pythonType = this.getVarType(variable);
+            return `var-type-${pythonType.replace(/[^a-zA-Z0-9_-]/g, "-").toLowerCase()}`;
         },
     },
 });
@@ -164,6 +186,17 @@ export default Vue.extend({
     word-break: break-all;
 }
 
+.var-type-pill {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.75em;
+    font-weight: 600;
+    border: 1px solid transparent;
+    vertical-align: middle;
+}
+
 .debugger-item:last-child {
     border-bottom: none;
 }
@@ -197,6 +230,79 @@ export default Vue.extend({
 
 .var-value {
     color: #000000;
+}
+
+.var-type-int,
+.var-type-bool {
+    color: #8d2a13;
+}
+
+.var-type-float,
+.var-type-complex {
+    color: #7a3e00;
+}
+
+.var-type-str,
+.var-type-bytes {
+    color: #0d5f20;
+}
+
+.var-type-list,
+.var-type-tuple,
+.var-type-range {
+    color: #115c73;
+}
+
+.var-type-dict,
+.var-type-set,
+.var-type-frozenset {
+    color: #21509b;
+}
+
+.var-type-nonetype {
+    color: #6f6f6f;
+}
+
+.var-type-unknown {
+    color: #444444;
+}
+
+.var-type-pill.var-type-int,
+.var-type-pill.var-type-bool {
+    background: #fff2ef;
+    border-color: #f3c6bf;
+}
+
+.var-type-pill.var-type-float,
+.var-type-pill.var-type-complex {
+    background: #fff6ec;
+    border-color: #f0d4ae;
+}
+
+.var-type-pill.var-type-str,
+.var-type-pill.var-type-bytes {
+    background: #eef9f1;
+    border-color: #b9dec2;
+}
+
+.var-type-pill.var-type-list,
+.var-type-pill.var-type-tuple,
+.var-type-pill.var-type-range {
+    background: #eef8fb;
+    border-color: #b9d9e3;
+}
+
+.var-type-pill.var-type-dict,
+.var-type-pill.var-type-set,
+.var-type-pill.var-type-frozenset {
+    background: #eef3ff;
+    border-color: #bccaf0;
+}
+
+.var-type-pill.var-type-nonetype,
+.var-type-pill.var-type-unknown {
+    background: #f4f4f4;
+    border-color: #d7d7d7;
 }
 
 .empty-state {
